@@ -61,6 +61,7 @@ class ForecastAntiGen(AntiGen): #Forecast (or Test) Antigens - No output data at
 			self.output_data = label #if label is None
 			wr.warn("Unable to compute forecast.")
 
+
 class AntiBody(): #Virtual antibody
 	def __init__(self, p, q):
 		'''Parameters:
@@ -89,8 +90,8 @@ class AntiBody(): #Virtual antibody
 		return paratope
 
 
-class ModelFive():
-	def __init__(self, data, tau = 1, Z = 10, S = 3 , delta = 1.5, c = 0.5 , sigma = 2):
+class AIS():
+	def __init__(self, data, tau = 1, Z = 10, S = 3 , delta = 2, c = 0.5 , sigma = 2):
 		'''Parameters.
 		data: pd.Series - Load TS under consideration
 		tau: int -- Forecast horizon
@@ -113,7 +114,8 @@ class ModelFive():
 		self.n = 24
 		#Population size
 		self.N = int(len(data)/self.n)#daily patterns
-
+		#Target weekday of model
+		self.target_day = None
 		#Training antigen population - generated for each forecasting task
 		self.PopAG = None
 		#Antibody population
@@ -290,33 +292,6 @@ class ModelFive():
 				#...
 		return winner
 
-	'''
-	def run_training(self):
-		#Loop over antibodies
-		n_antibodies = len(self.PopAB)
-		i = 1
-		for AB in self.PopAB:
-			#Status message
-			print("Processing AB ", i, " of ", n_antibodies) 
-			#Store parent index in list
-			index = self.PopAB.index(AB)
-			#Generate pool of clones
-			clone_pool = self.generate_clones(AB)
-			#Loop over clones
-			for clone in clone_pool:
-				#Hypermutation of clones
-				self.hypermutaion(clone)
-				#Compute cross-reactivity threshold for clone
-				self.cross_reactivity_threshold(clone)
-				#Compute affinities, label and power
-				self.label_and_power(clone)
-			#Find best clone
-			best = self.winner_clone(clone_pool)
-			#Replace AB with best clone
-			self.PopAB[index] = best
-			i += 1 '''
-
-
 	def run_training_stop_criterion(self):
 		#Loop over antibodies
 		n_antibodies = len(self.PopAB)
@@ -367,20 +342,37 @@ class ModelFive():
 			print("Clonal power-up recognized antigens ", pow_list) #debug
 			i += 1
 
+	def train(self, target_day):
+		'''Train model for given day of week target
+		target_day: int in {0,1, ... , 6}
 
-	def predict(self, fAG, train = True):
+		'''
+		#Set model target day
+		self.target_day = target_day
+		#Load antigen training set according to target day
+		self.PopAG = self.load_antigens(target_day)
+		#Generate antibodies
+		self.PopAB = self.generate_antibodies()
+		#Train
+		self.run_training_stop_criterion()
+
+	def predict(self, fAG, train = False):
 		'''Compute label (forecast) for test AG.
 		Parameters.
 		fAG: ForecastAntiGen. 
 		'''
-		target_day = fAG.output_day
 		if train:
+			#Set model target day
+			self.target_day = fAG.output_day
 			#Load antigen training set according to target day
-			self.PopAG = self.load_antigens(target_day)
+			self.PopAG = self.load_antigens(self.target_day)
 			#Generate antibodies
 			self.PopAB = self.generate_antibodies()
 			#Train
 			self.run_training_stop_criterion()
+		#Check if Forecast AG is suitable
+		elif fAG.output_day != self.target_day:
+			raise ValueError("AG target day does not match model target day")
 		#Forecast routine
 		weights = [] #weights for forecast
 		vectors = [] #AB labels to average
@@ -399,3 +391,29 @@ class ModelFive():
 		print("F:", forecast)
 		fAG.set_label(forecast)
 		return forecast
+
+class ParallelAIS():
+	'''Class to simultaneoulsy build parallel AIS: one for each weekday'''
+	def __init__(self, data, train = True, **kwargs):
+		self.data = data
+		self.params = kwargs
+		self.models = [] #Store Artificial Immune Systems
+		#Build & Train separate models
+		dayOfWeek={0:'Monday', 1:'Tuesday', 2:'Wednesday', 3:'Thursday', 4:'Friday', 5:'Saturday', 6:'Sunday'}
+		for day in range(7):
+			ais = AIS(data, **kwargs)
+			if train:
+				print("Training AIS for ", dayOfWeek[day])
+				ais.train(day)
+			self.models.append(ais) #Store ais (eventally trained)
+
+	def predict(self, fAG):
+		'''Compute label (forecast) for test AG.
+		Parameters.
+		fAG: ForecastAntiGen. 
+		'''
+		target_day = fAG.output_day
+		self.models[target_day].predict(fAG)
+
+
+
