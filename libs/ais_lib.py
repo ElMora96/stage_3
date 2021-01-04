@@ -91,12 +91,13 @@ class AntiBody(): #Virtual antibody
 
 
 class AIS():
-	def __init__(self, data, tau = 1, Z = 10, S = 3 , delta = 2, c = 0.5 , sigma = 2):
+	def __init__(self, data, tau = 1, Z = 10, S = 3 , max_iter = 25, delta = 2, c = 0.5 , sigma = 2):
 		'''Parameters.
 		data: pd.Series - Load TS under consideration
 		tau: int -- Forecast horizon
 		Z: int -- Clone population size
 		S: int -- Stop clonal selection loop after s iterations w/o improvements
+		max_iter: int : Stop clonal selection loop after max_iter iterations, regardless of S criterion
 		delta: float >=0 -- Threshold error
 		c: float in [0,1) -- Adjust cross-reactivity threshold
 		sigma: float >=0 -- St. deviation of Normal distibution controlling hypermutation range 
@@ -107,6 +108,7 @@ class AIS():
 		self.tau = tau
 		self.Z = Z
 		self.S = int(S)
+		self.max_iter = max_iter
 		self.delta = delta
 		self.c = c
 		self.sigma = sigma
@@ -217,16 +219,16 @@ class AIS():
 		#Compute cross-reactivity threshold
 		#Find smallest distance between clone_AB and AGs in class 2 (d_A)
 		distances_A = []
-		for AG in class_2:
-			d = self.paratope_dist(clone_AB, AG)
-			distances_A.append(d)
-		d_A = min(distances_A) #extract minimum
-		#Find largest distance between clone_AB and AGs in class 1 (d_B)
-		distances_B = []
 		for AG in class_1:
 			d = self.paratope_dist(clone_AB, AG)
+			distances_A.append(d)
+		d_A = max(distances_A) #extract minimum
+		#Find largest distance between clone_AB and AGs in class 1 (d_B)
+		distances_B = []
+		for AG in class_2:
+			d = self.paratope_dist(clone_AB, AG)
 			distances_B.append(d)
-		d_B = max(distances_B) #extract maximum
+		d_B = min(distances_B) #extract maximum
 		#Threshold
 		r_clone = d_A + self.c * (d_B - d_A)
 		clone_AB.r = r_clone
@@ -337,7 +339,7 @@ class AIS():
 				#Replace AB with best clone
 				self.PopAB[index] = best
 				pow_list.append(best.P)	
-				if len(pow_list) >= 25:
+				if len(pow_list) >= self.max_iter:
 					break #Ugly but just fuckin works			
 			print("Clonal power-up recognized antigens ", pow_list) #debug
 			i += 1
@@ -388,7 +390,6 @@ class AIS():
 			wr.warn("Antigen Not recognized by system!")		
 			forecast = None 
 		#Set forecast antigen label
-		print("F:", forecast)
 		fAG.set_label(forecast)
 		return forecast
 
@@ -407,7 +408,7 @@ class ParallelAIS():
 				ais.train(day)
 			self.models.append(ais) #Store ais (eventally trained)
 
-	def predict(self, fAG):
+	def predict_ag(self, fAG):
 		'''Compute label (forecast) for test AG.
 		Parameters.
 		fAG: ForecastAntiGen. 
@@ -415,5 +416,20 @@ class ParallelAIS():
 		target_day = fAG.output_day
 		self.models[target_day].predict(fAG)
 
-
+	def predict(self, series):
+		'''Compute forecast for given time series.
+		serie: pd.Series. Compute day + tau forecasts
+		'''
+		#Parameters
+		tau = self.models[0].tau
+		#Generate test antigens
+		test_antigens = [ForecastAntiGen(data) for data in np.split(series, len(series)/24)]
+		#Compute predictions
+		predictions = []
+		for AG in test_antigens:
+			self.predict_ag(AG)
+			predictions.append(AG.output_data)
+		#Concatenate
+		forecast = pd.concat(predictions)
+		return forecast
 
