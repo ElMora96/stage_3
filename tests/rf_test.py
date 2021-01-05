@@ -69,7 +69,7 @@ true_load = true_load.tz_convert("UTC")
 
 #%%
 #Consider zone of interest
-zone = 'CSUD'
+zone = 'NORD'
 z_temp = temp[zone]
 z_solar = solar[zone]
 z_egea = egea_forecast[zone]
@@ -77,7 +77,7 @@ z_true = true_load[zone]
 
 #%%
 #Generate model load dataset according to desired forecast
-last_bill = "2020-06" #last bill to consider (Month N-2)
+last_bill = "2020-07" #last bill to consider (Month N-2)
 last_date = "2020-12-01 23:00:00+00:00" #Last available date in load dataset. RK specify it in UTC format
 true_base = z_true[:last_bill] #Take all "available" bills 
 forecast_completion = z_egea[true_base.index[-1] + pd.Timedelta(1,"H"): last_date] #Complete with corporate forecast
@@ -92,8 +92,8 @@ z_load = z_load[first_date:last_date]
 #? - WHY THIS DOES NOT WORK IN LOOP? - ?
 #%%
 #Test set
-test_range = pd.date_range(start = '2020-08-01 00:00:00+00:00',
-						   end = '2020-08-31 23:00:00+00:00',
+test_range = pd.date_range(start = '2020-09-01 00:00:00+00:00',
+						   end = '2020-09-30 23:00:00+00:00',
 						   freq = 'H',
 						   tz = 'UTC'
 						   )
