@@ -4,12 +4,10 @@ import pandas as pd
 import numpy as np
 import copy as cp 
 import  warnings as wr
-from numba import jit
 #Mean absolute percentage error
 from utils_lib import mape, all_equal
 #Minkowski distance
 from scipy.spatial.distance import minkowski
-
 
 class AntiGen():  #Training Antigens
 	def __init__(self, input_data, output_data):
@@ -150,7 +148,6 @@ class AIS():
 			population.append(AB)
 		return population
 
-	#@jit(nopython = True)
 	def paratope_dist(self, AB, AG, e = 2):
 		'''Compute distance between specified AB and AG,
 		taking into account only position specified in the paratope of AB.
@@ -172,7 +169,6 @@ class AIS():
 			clones.append(clone)
 		return clones
 
-	#@jit(nopython = True)
 	def hypermutaion(self, clone_AB):
 		'''Run SHM over clone AB'''
 		#Compute m:
@@ -195,7 +191,6 @@ class AIS():
 		#Set new paratope
 		clone_AB.omega = new_paratope
 
-	#@jit(nopython = True)
 	def cross_reactivity_threshold(self, clone_AB):
 		'''compute cross-reactivity threshold r of clone AB, keep trace of parent'''
 		#Split antigens into two classes
@@ -241,7 +236,6 @@ class AIS():
 			aff = 1 - (self.paratope_dist(AB, AG)/AB.r)
 		return aff
 
-	#@jit(nopython = True)
 	def label_and_power(self, clone_AB):
 		'''compute prediction label for given clone antibody, together with its power'''
 		#Find AGs which lie in recognition region of clone_AB
@@ -263,7 +257,6 @@ class AIS():
 		clone_AB.q = label
 		clone_AB.P = power
 
-	#@jit(nopython = True)
 	def winner_clone(self, clones):
 		'''Find best clone'''
 		#First selection - Highest power

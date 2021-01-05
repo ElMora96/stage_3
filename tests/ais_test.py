@@ -42,16 +42,16 @@ egea_forecast =  pd.read_csv("D:/Users/F.Moraglio/Documents/python_forecasting/s
 egea_forecast.index = pd.to_datetime(egea_forecast.index, utc=True)
 egea_forecast = egea_forecast.tz_convert("UTC")
 #%%
-zone = 'NORD'
+zone = 'CNOR'
 ndata = data[zone]
 negea = egea_forecast[zone]
-train = ndata["2018-08":"2020-07"]
+train = ndata["2019"]
 #%%
 #Parallelized version
 #Dudek suggests sigma = 1.9, 3>= delta >=2, c almost 1
-parallel_model = al.ParallelAIS(data = train, delta = 3, c = 0.95, max_iter=15, sigma = 2, S=1)
+parallel_model = al.ParallelAIS(data = train, delta = 3.5, c = 0.5, max_iter=20, sigma = 2.5, S=3)
 #%%
-testseries = negea["2020-09-01":"2020-11-01"]
+testseries = ndata["2020-03-01":"2020-03-30"]
 #Predict
 forecast = parallel_model.predict(testseries) 
 #Comparison
