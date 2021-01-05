@@ -79,7 +79,7 @@ class  PatternList():
 		trav.next = None
 		self.length -= 1
 
-class ModelFour():
+class ModelRF():
 	def __init__(self, time_series, temp_series, solar_series,  n = 24, M = 50):
 		'''time_series: pd.Series with datetime index
 			load TS under consideration

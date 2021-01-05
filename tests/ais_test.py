@@ -51,7 +51,7 @@ train = ndata["2019"]
 #Dudek suggests sigma = 1.9, 3>= delta >=2, c almost 1
 parallel_model = al.ParallelAIS(data = train, delta = 3.5, c = 0.5, max_iter=20, sigma = 2.5, S=3)
 #%%
-testseries = ndata["2020-03-01":"2020-03-30"]
+testseries = negea["2020-03-01":"2020-03-30"]
 #Predict
 forecast = parallel_model.predict(testseries) 
 #Comparison
