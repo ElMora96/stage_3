@@ -66,6 +66,25 @@ true_load = pd.read_csv("D:/Users/F.Moraglio/Documents/python_forecasting/stage_
 true_load = true_load.tz_localize("Europe/Rome", ambiguous="infer")
 true_load = true_load.tz_convert("UTC") 
 
+#Flag vacanze
+holiday = pd.read_csv("D:/Users/F.Moraglio/Documents/python_forecasting//data/flags/holiday.csv",
+					sep = ";", #specify separator
+					parse_dates = True,
+					dayfirst= True, #To parse
+					decimal=",",
+					index_col = 0,
+					squeeze = True,
+					)
+
+#Flag lockdown
+lockdown = pd.read_csv("D:/Users/F.Moraglio/Documents/python_forecasting//data/flags/lockdown.csv",
+					sep = ";", #specify separator
+					parse_dates = True,
+					dayfirst= True, #To parse
+					decimal=",",
+					index_col = 0,
+					squeeze = True,
+					)
 #%%
 #Parameters
 last_bill = "2020-05" #last bill to consider (Month N-2) - Name for folder
@@ -99,7 +118,7 @@ for zone in zonelist: #Run forecast for each zone
 	true_series = z_true[test_range]
 	egea_series = z_egea[test_range]
 	#Prediction
-	model = rf.ModelRF(z_load, z_temp, z_solar, M = 100 )
+	model = rf.ModelRF(z_load, z_temp, z_solar, holiday, lockdown, M = 100 )
 	pred_series = model.predict(test_range, recursive = False)
 	model_err = mape(true_series, pred_series)
 	egea_err = mape(true_series, egea_series)

@@ -77,8 +77,47 @@ class  PatternList():
 		trav.next = None
 		self.length -= 1
 
+
+class  Predictor():
+	'''Predictors for Random Forest Model, for better working of NN'''
+	def __init__(self, model, query, t):
+		'''query: Pattern. -- Target to predict
+		   model: Parent forecasting model
+		'''
+		#Traverse linked list up to day previous query
+		trav = model.patterns.head
+		while trav.next.date != query.date:
+			trav = trav.next
+		#Previous day load
+		self.load = trav.load_resid.values
+		#Forecast Temperatures
+		self.target_temps = query.temp.values
+		#Forecast Solar 
+		self.target_solar = query.solar.values
+		#Metadata
+		self.target_month = np.array(query.month).reshape(1) #label encoding
+		self.target_weekday = np.array(query.weekday).reshape(1) #label encoding
+		self.target_hour = np.array(t).reshape(1) #label encoding
+		self.target_period = query.period
+		self.target_lockdown = np.array(model.lockdown_series[query.load_resid.index[t]]).reshape(1)
+		self.target_holiday = np.array(model.holiday_series[query.load_resid.index[t]]).reshape(1)
+
+	def to_array(self):
+		'''Return predictor in np.array format'''
+		x_list = [self.load,
+			self.target_temps,
+			self.target_solar,
+			self.target_period,
+			self.target_hour,
+			self.target_weekday,
+			self.target_month,
+			self.target_lockdown,
+			self.target_holiday
+			]
+		return np.concatenate(x_list)
+
 class ModelRF():
-	def __init__(self, time_series, temp_series, solar_series, holiday_series, lockdown_series,  n = 24, M = 100):
+	def __init__(self, time_series, temp_series, solar_series, holiday_series, lockdown_series,  n = 24, M = 100, rest = True):
 		'''time_series: pd.Series with datetime index
 			load TS under consideration
 			temp_series : pd.Series with datetime index
@@ -90,11 +129,13 @@ class ModelRF():
 				cycle length (default = 24)
 			M: int
 			Number of neighbors to consider (in nearest-neighbor generation; default = 100)
+			rest: Boolean -- flag specifying wether or not to perform M-NN restriction
 
 		'''
 		#Parameters
 		self.n = n #cycle length
 		self.M = M #Restrict to M neighbors
+		self.rest = rest
 		
 		#Base Data
 		self.time_series = time_series
@@ -184,44 +225,10 @@ class ModelRF():
 		t: int
 		target forecast hour
 		'''
-		#Load residulas
-		trav = self.patterns.head
-		#traverse linked list up to day previous to query
-		while trav.next.date != query.date:
-			trav = trav.next
-		assert trav.next.date == query.date
-		#Previous day load
-		load = trav.load_resid.values		
-		#Solar forecast of target hour		
-		target_solar = np.array(query.solar[t]).reshape(1)
-		#forecast temperature of target day
-		target_temps = query.temp.values 
+		X = Predictor(self, query, t)
+		return X.to_array()
 
-		#Non binary metadata
-		target_month = np.array(query.month).reshape(1) #label enc
-		target_weekday = np.array(query.weekday).reshape(1) #label enc
-		target_hour = np.array(t).reshape(1) #label enc
-		target_period = query.period #float arr
-		target_lockdown = np.array(self.lockdown_series[query.load_resid.index[t]]).reshape(1)
-		target_holiday = np.array(self.holiday_series[query.load_resid.index[t]]).reshape(1)
-
-		#list of inputs - adjust it as you want
-		x_list = [load,
-			target_temps,
-			target_solar,
-			target_period,
-			target_hour,
-			target_weekday,
-			target_month,
-			target_lockdown,
-			target_holiday
-			]
-
-		x_val = np.concatenate(x_list) #total input size 51
-
-		return x_val
-
-	def learning_set(self, query, t, restrict = True):
+	def learning_set(self, query, t, restrict):
 		#Training set generator for each forecasting task
 		'''
 		query: Pattern
@@ -306,7 +313,7 @@ class ModelRF():
 									   ccp_alpha = 0.1,
 									   verbose = 0)
 		#Learrning sets
-		X, y = self.learning_set(query, t)
+		X, y = self.learning_set(query, t, restrict = self.rest)
 		#Model
 		model = model.fit(X, y)
 		#Compute predictor
