@@ -36,8 +36,6 @@ class Pattern():
 		self.month = self.load_resid.index[0].month
 		#Period of year array encoding
 		self.period = self.compute_period()
-		#Is the day in lockdown period?
-		self.is_lockdown = None
 
 		#Pointer to next node
 		self.next = None
@@ -80,15 +78,18 @@ class  PatternList():
 		self.length -= 1
 
 class ModelRF():
-	def __init__(self, time_series, temp_series, solar_series,  n = 24, M = 50):
+	def __init__(self, time_series, temp_series, solar_series, holiday_series, lockdown_series,  n = 24, M = 100):
 		'''time_series: pd.Series with datetime index
 			load TS under consideration
 			temp_series : pd.Series with datetime index
 			associated weather series (temperature)
+			solar_series: pd.Series -- Solar Production
+			holiday_series: pd.Series -- 0/1 hourly flags for holidays
+			lockdown_series: pd.Series -- 0/1 hourly flags for lockdown periods
 			n: int
 				cycle length (default = 24)
 			M: int
-			Number of neighbors to consider (in nearest-neighbor generation; default = 50)
+			Number of neighbors to consider (in nearest-neighbor generation; default = 100)
 
 		'''
 		#Parameters
@@ -99,8 +100,8 @@ class ModelRF():
 		self.time_series = time_series
 		self.temp_series = temp_series
 		self.solar_series = solar_series
-
-
+		self.holiday_series = holiday_series
+		self.lockdown_series = lockdown_series
 
 		#ETS decomposition of diffed time series
 		decomposition = self.decompose(self.time_series)
@@ -164,8 +165,12 @@ class ModelRF():
 		X_load = np.array([vec[0:24] for vec in X])
 		Neighbors = NearestNeighbors(n_neighbors, metric = 'euclidean')#kshape_lib.sbd
 		Neighbors.fit(X_load)
+		#traverse linked list up to day previous to query
+		trav = self.patterns.head
+		while trav.next.date != query.date:
+			trav = trav.next
 		#List of NN indices
-		element = query.load_resid.values.reshape(1,-1)
+		element = trav.load_resid.values.reshape(1,-1)
 		neigh = list(Neighbors.kneighbors(element, return_distance = False))
 		X = X[neigh]
 		y = y[neigh]
@@ -197,7 +202,8 @@ class ModelRF():
 		target_weekday = np.array(query.weekday).reshape(1) #label enc
 		target_hour = np.array(t).reshape(1) #label enc
 		target_period = query.period #float arr
-		target_lockdown = query.is_lockdown
+		target_lockdown = np.array(self.lockdown_series[query.load_resid.index[t]]).reshape(1)
+		target_holiday = np.array(self.holiday_series[query.load_resid.index[t]]).reshape(1)
 
 		#list of inputs - adjust it as you want
 		x_list = [load,
@@ -207,7 +213,8 @@ class ModelRF():
 			target_hour,
 			target_weekday,
 			target_month,
-			#target_lockdown
+			target_lockdown,
+			target_holiday
 			]
 
 		x_val = np.concatenate(x_list) #total input size 51
@@ -244,8 +251,12 @@ class ModelRF():
 
 		#Restrict to NN
 		if restrict:
-			X, y = self.restrict_to_NN(X, y, query, self.M) 
-
+			target_index = trav.load_resid.index[t] #target time index
+			if self.holiday_series[target_index] == 1:
+				K = int(np.ceil(0.35 * self.M))
+			else:
+				K = self.M #Vary neighborhood size according to daytype
+			X, y = self.restrict_to_NN(X, y, query, K) 
 		return X, y
 
 	def daily_trend_pred(self, now, delta = pd.Timedelta(3, "W")):
