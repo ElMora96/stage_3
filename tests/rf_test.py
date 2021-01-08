@@ -1,7 +1,7 @@
 #Testing random forest model
 import sys
 sys.path.append("D://Users//F.Moraglio//Documents//python_forecasting//stage_3//libs")
-import stl_rf_lib as rf 
+import stl_rf_NN_lib as rf 
 from utils_lib import  mape
 import pandas as pd
 import numpy as np
@@ -96,7 +96,7 @@ z_true = true_load[zone]
 
 #%%
 #Generate model load dataset according to desired forecast
-last_bill = "2020-05" #last bill to consider (Month N-2)
+last_bill = "2020-08" #last bill to consider (Month N-2)
 last_date = "2020-12-13 23:00:00+00:00" #Last available date in load dataset. RK specify it in UTC format
 true_base = z_true[:last_bill] #Take all "available" bills 
 forecast_completion = z_egea[true_base.index[-1] + pd.Timedelta(1,"H"): last_date] #Complete with corporate forecast
@@ -111,8 +111,8 @@ z_load = z_load[first_date:last_date]
 #? - WHY THIS DOES NOT WORK IN LOOP? - ?
 #%%
 #Test set
-test_range = pd.date_range(start = '2020-07-01 00:00:00+00:00',
-						   end = '2020-07-02 23:00:00+00:00',
+test_range = pd.date_range(start = '2020-10-01 00:00:00+00:00',
+						   end = '2020-10-30 23:00:00+00:00',
 						   freq = 'H',
 						   tz = 'UTC'
 						   )
@@ -120,8 +120,8 @@ true_series = z_true[test_range]
 egea_series = z_egea[test_range]
 
 #Model & Predicion
-model = rf.ModelRF(z_load, z_temp, z_solar, holiday, lockdown, M = 100, rest=True )
-pred_series = model.predict(test_range, recursive = False)
+model = rf.ModelRF(z_load, z_temp, z_solar, holiday, lockdown, M = 75, rest=True )
+pred_series = model.predict(test_range, recursive = True)
 
 #%%
 #Evaluation & Plot Routine

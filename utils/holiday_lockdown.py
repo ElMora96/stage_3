@@ -37,6 +37,9 @@ feste = {dt.date(2018,1,1), dt.date(2018,1,6), dt.date(2018,4,1), dt.date(2018,4
 for index, _ in holiday.iteritems():
 	if index.date() in (feste):
 		holiday[index] = 1 #flag holydays
+	if index.weekday() == 6
+		holiday[index] = 0.75 #Flag sunday
+
 
 #Cast to UTC
 holiday = holiday.tz_convert("UTC")

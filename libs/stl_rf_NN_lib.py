@@ -4,6 +4,7 @@ import numpy as np
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.neighbors import NearestNeighbors
+from sklearn.utils import resample
 
 from statsmodels.tsa.holtwinters import Holt
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
@@ -19,10 +20,8 @@ class Pattern():
 		
 		#Load Residuals Values
 		self.load_resid = data
-
 		#Temperatures
-		self.temp = temp #temperature cycle
-
+		self.temp = temp 
 		#Solar data
 		self.solar = solar
 
@@ -80,7 +79,7 @@ class  PatternList():
 
 class  Predictor():
 	'''Predictors for Random Forest Model, for better working of NN'''
-	def __init__(self, model, query, t = None):
+	def __init__(self, model, query, t):
 		'''query: Pattern -- Target to predict
 		   model: ModelRF -- Parent forecasting model
 		   t: int -- Forecast hour 
@@ -104,7 +103,6 @@ class  Predictor():
 		self.target_holiday = np.array(model.holiday_series[query.load_resid.index[t]]).reshape(1)
 
 	def to_array(self):
-		'''Return predictor in np.array format'''
 		x_list = [self.load,
 			self.target_temps,
 			self.target_solar,
@@ -120,8 +118,8 @@ class  Predictor():
 	def to_reduced_array(self):
 		'''Returned Shortened (NN-friendly) predictors in np.array format'''
 		x_list = [self.load,
-			self.target_temps,
-			self.target_solar
+			self.target_temps
+			#self.target_solar #cluster based on solar is merda!
 			]
 		return np.concatenate(x_list)
 
@@ -209,33 +207,51 @@ class ModelRF():
 
 		return pattern_linked_list
 
-	def restrict_to_NN(self, X, y, query, n_neighbors):
-		#Restrict neural netwotk training set to nearest neighbors; naive
-		#Consider only load resid components
-		X_load = np.array([vec[0:24] for vec in X])
-		Neighbors = NearestNeighbors(n_neighbors, metric = 'euclidean')#kshape_lib.sbd
-		Neighbors.fit(X_load)
-		#traverse linked list up to day previous to query
-		trav = self.patterns.head
-		while trav.next.date != query.date:
-			trav = trav.next
-		#List of NN indices
-		element = trav.load_resid.values.reshape(1,-1)
-		neigh = list(Neighbors.kneighbors(element, return_distance = False))
-		X = X[neigh]
-		y = y[neigh]
-
-		return X, y
-
-	def compute_predictors(self, query, t): #RF version: no standardization
+	def restrict_trainset(self, predictors, targets, query, n_neighbors):
+		'''NN restriction of RF training set.
+		Parameters:
+		predictors: list of Predictor
+		targets: list of y-values (response variables)
+		query: Pattern. -- Forecast Day of Interest
+		n_neighbors: int -- Number o Neighbors for standard day
 		'''
-		query: Pattern
-		compute predictor array for given pattern
-		t: int
-		target forecast hour
+		if len(predictors) != len(targets):
+			raise ValueError("Predictor list and Targets list must have same length!")
+		t = int(predictors[0].target_hour) #Little bit ugly
+		q_predictor = Predictor(self, query, t)
+		#Sklearn euclidean Neighbors
+		base_model = NearestNeighbors(n_neighbors, metric = "euclidean")
+		X = [P.to_reduced_array() for P in predictors]
+		X = np.array(X)
+		#Basic Neighbors
+		base_model.fit(X)
+		q_x = q_predictor.to_reduced_array().reshape(1,-1) #Query array
+		neigh = base_model.kneighbors(q_x, return_distance = False).reshape(self.M)
+		predictors = [predictors[i] for i in neigh]
+		targets = [targets[i] for i in neigh]
+		#Holiday filtering
 		'''
-		X = Predictor(self, query, t)
-		return X.to_array()
+		if q_predictor.target_holiday > 0:
+			neigh_2 = []
+			for ix, item in enumerate(predictors):
+				if item.target_holiday > 0:
+					neigh_2.append(ix) #retain maledetti
+			predictors = [predictors[i] for i in neigh_2]
+			targets = [targets[i] for i in neigh_2]
+		'''
+		#...
+		#Return trainset as array
+		predictors = np.array([P.to_array() for P in predictors])
+		#print("Trainset length ", len(predictors))
+		targets = np.array(targets)
+		#Resample if dataset is too short
+		if len(targets) < 0.2*self.M:
+			resampling = resample(predictors, targets, n_samples=int(0.2*self.M))
+			predictors, targets = resampling
+			#print("New Trainset length ", len(predictors))
+
+
+		return predictors, targets
 
 	def learning_set(self, query, t, restrict):
 		#Training set generator for each forecasting task
@@ -252,27 +268,17 @@ class ModelRF():
 		trav = self.patterns.head.next #skip first day as it has no day before
 		while trav.date != query.date: #retain one more day
 			#predictors
-			x_val = self.compute_predictors(trav, t)
+			x_val = Predictor(self, trav, t)
 			#target
 			y_val = trav.load_resid.values[t] #HERE
-			
 			#Store values
 			X.append(x_val)
 			y.append(y_val)
 
 			trav = trav.next
-
-		X = np.array(X)
-		y = np.array(y)
-
-		#Restrict to NN
+		#Perform trainset restriction
 		if restrict:
-			target_index = trav.load_resid.index[t] #target time index
-			if self.holiday_series[target_index] == 1:
-				K = int(np.ceil(0.35 * self.M))
-			else:
-				K = self.M #Vary neighborhood size according to daytype
-			X, y = self.restrict_to_NN(X, y, query, K) 
+			X, y = self.restrict_trainset(X, y, query, self.M)
 		return X, y
 
 	def daily_trend_pred(self, now, delta = pd.Timedelta(3, "W")):
@@ -326,7 +332,7 @@ class ModelRF():
 		#Model
 		model = model.fit(X, y)
 		#Compute predictor
-		predictor = self.compute_predictors(query, t).reshape(1,-1)
+		predictor = Predictor(self, query, t).to_array().reshape(1,-1)
 		#Predict
 		prediction = model.predict(predictor)
 
@@ -354,7 +360,6 @@ class ModelRF():
 
 		while trav and trav.date != last_date + pd.Timedelta(1, "D"):
 			print("Predicting day ", k)
-			#print(trav.load_resid.index[0])
 			r_pred = []
 			#Hourly predictions - Resids
 			for t in range(24): #iterate over time
@@ -373,10 +378,12 @@ class ModelRF():
 		
 			#Recursive forecast
 			if recursive:
-				self.trend[trav.load_resid.index] = t_pred.values
-				self.seasonal[trav.load_resid.index] = s_pred.values
-				self.residuals[trav.load_resid.index] = r_pred.values
-				trav.load_resid = r_pred
+				u = np.random.uniform(0.25, 0.75)
+				averager = lambda x, y : u*x + (1-u)*y
+				self.trend[trav.load_resid.index] = averager(self.trend[trav.load_resid.index], t_pred.values)
+				self.seasonal[trav.load_resid.index] = averager(self.seasonal[trav.load_resid.index], s_pred.values)
+				self.residuals[trav.load_resid.index] = averager(self.residuals[trav.load_resid.index], r_pred.values)
+				trav.load_resid = averager(trav.load_resid, r_pred)
 			'''
 			#Semi-recursive forecast: average recursion and egea forecast
 			if recursive:

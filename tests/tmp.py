@@ -116,14 +116,6 @@ class  Predictor():
 			self.target_holiday
 			]
 		return np.concatenate(x_list)
-	
-	def to_reduced_array(self):
-		'''Returned Shortened (NN-friendly) predictors in np.array format'''
-		x_list = [self.load,
-			self.target_temps,
-			self.target_solar
-			]
-		return np.concatenate(x_list)
 
 class ModelRF():
 	def __init__(self, time_series, temp_series, solar_series, holiday_series, lockdown_series,  n = 24, M = 100, rest = True):
