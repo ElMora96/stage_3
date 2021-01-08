@@ -1,7 +1,7 @@
 #Testing random forest model
 import sys
 sys.path.append("D://Users//F.Moraglio//Documents//python_forecasting//stage_3//libs")
-import stl_rf_NN_lib as rf 
+import stl_rf_ds_lib as rf 
 from utils_lib import  mape
 import pandas as pd
 import numpy as np
@@ -96,7 +96,7 @@ z_true = true_load[zone]
 
 #%%
 #Generate model load dataset according to desired forecast
-last_bill = "2020-08" #last bill to consider (Month N-2)
+last_bill = "2020-06" #last bill to consider (Month N-2)
 last_date = "2020-12-13 23:00:00+00:00" #Last available date in load dataset. RK specify it in UTC format
 true_base = z_true[:last_bill] #Take all "available" bills 
 forecast_completion = z_egea[true_base.index[-1] + pd.Timedelta(1,"H"): last_date] #Complete with corporate forecast
@@ -111,8 +111,8 @@ z_load = z_load[first_date:last_date]
 #? - WHY THIS DOES NOT WORK IN LOOP? - ?
 #%%
 #Test set
-test_range = pd.date_range(start = '2020-10-01 00:00:00+00:00',
-						   end = '2020-10-30 23:00:00+00:00',
+test_range = pd.date_range(start = '2020-08-01 00:00:00+00:00',
+						   end = '2020-08-31 23:00:00+00:00',
 						   freq = 'H',
 						   tz = 'UTC'
 						   )
@@ -121,12 +121,13 @@ egea_series = z_egea[test_range]
 
 #Model & Predicion
 model = rf.ModelRF(z_load, z_temp, z_solar, holiday, lockdown, M = 75, rest=True )
-pred_series = model.predict(test_range, recursive = True)
+pred_series = model.predict(test_range, recursive = False)
 
 #%%
 #Evaluation & Plot Routine
 full_err = mape(true_series, pred_series)
 egea_err = mape(true_series, egea_series)
+
 
 plt.plot(true_series, label = "Consuntivo", color = "black", linewidth = 4, alpha = 0.5)
 plt.plot(pred_series, label = "Modello", color = "red", linestyle="--", linewidth = 2)
@@ -136,6 +137,24 @@ plt.title("Test Modello 4 (Random Forest)  - "+str(zone)+"\nErrore Medio Modello
 		  str(np.round(full_err, 1))+ "%\n Errore Medio Egea: " + str(np.round(egea_err, 1)) +"%")
 plt.legend()
 plt.show()
+
+#%%
+#Decomposed Analysis - Double seasonality model
+first_decompose = STL(true_load[zone], period = 168, seasonal = 169).fit()
+seasonal_1 = first_decompose.seasonal
+intermediate_series = true_load[zone] - seasonal_1
+second_decompose = STL(intermediate_series, period = 24, seasonal = 25).fit()
+trend = second_decompose.trend
+seasonal_2 = second_decompose.seasonal
+resid = second_decompose.resid
+true_list = [trend[test_range, seasonal_1[test_range], seasonal_2[test_range], resid[test_range]]
+pred_list = [model.trend_prediction, model.seas_1_prediction, model.seas_2_prediction, model.resid_prediction]
+name_list = ["Trend", "Season", "Resid"]
+for true, pred, name in zip(true_list, pred_list, name_list):
+	plt.plot(true, label = "Actual" + name, color = "blue", linewidth = 2)
+	plt.plot(pred, label = "Prediction", color = "red", linestyle="--")
+	plt.legend()
+	plt.show()
 
 #%%
 #Decomposed Analysis
