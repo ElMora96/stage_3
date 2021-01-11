@@ -121,7 +121,7 @@ egea_series = z_egea[test_range]
 
 #Model & Predicion
 model = rf.ModelRF(z_load, z_temp, z_solar, holiday, lockdown, M = 75, rest=True )
-pred_series = model.predict(test_range, recursive = False)
+pred_series = model.predict(test_range, recursive = True)
 
 #%%
 #Evaluation & Plot Routine
@@ -147,11 +147,11 @@ second_decompose = STL(intermediate_series, period = 24, seasonal = 25).fit()
 trend = second_decompose.trend
 seasonal_2 = second_decompose.seasonal
 resid = second_decompose.resid
-true_list = [trend[test_range, seasonal_1[test_range], seasonal_2[test_range], resid[test_range]]
+true_list = [trend[test_range], seasonal_1[test_range], seasonal_2[test_range], resid[test_range]]
 pred_list = [model.trend_prediction, model.seas_1_prediction, model.seas_2_prediction, model.resid_prediction]
-name_list = ["Trend", "Season", "Resid"]
+name_list = ["Trend", "Season 1", "Season 2", "Resid"]
 for true, pred, name in zip(true_list, pred_list, name_list):
-	plt.plot(true, label = "Actual" + name, color = "blue", linewidth = 2)
+	plt.plot(true, label = "Actual " + name, color = "blue", linewidth = 2)
 	plt.plot(pred, label = "Prediction", color = "red", linestyle="--")
 	plt.legend()
 	plt.show()
