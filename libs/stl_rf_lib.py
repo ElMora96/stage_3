@@ -94,7 +94,7 @@ class  Predictor():
 		#Forecast Temperatures
 		self.target_temps = query.temp.values
 		#Forecast Solar 
-		self.target_solar = query.solar.values
+		self.target_solar = query.solar.values[6:21]
 		#Metadata
 		self.target_month = np.array(query.month).reshape(1) #label encoding
 		self.target_weekday = np.array(query.weekday).reshape(1) #label encoding
@@ -109,7 +109,7 @@ class  Predictor():
 			self.target_temps,
 			self.target_solar,
 			self.target_period,
-			self.target_hour,
+			#self.target_hour, #useless for forecast
 			self.target_weekday,
 			self.target_month,
 			self.target_lockdown,
@@ -317,7 +317,7 @@ class ModelRF():
 									   bootstrap = True,
 									   max_samples = 0.5, #low bootstrap size 0.3
 									   max_depth =None, #5
-									   min_samples_split = 5,
+									   min_samples_split = 2,
 									   n_jobs = 4,
 									   ccp_alpha = 0.1,
 									   verbose = 0)

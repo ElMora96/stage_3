@@ -93,7 +93,7 @@ class  Predictor():
 		#Forecast Temperatures
 		self.target_temps = query.temp.values
 		#Forecast Solar 
-		self.target_solar = query.solar.values
+		self.target_solar = query.solar.values[6:21]
 		#Metadata
 		self.target_month = np.array(query.month).reshape(1) #label encoding
 		self.target_weekday = np.array(query.weekday).reshape(1) #label encoding
@@ -107,7 +107,7 @@ class  Predictor():
 			self.target_temps,
 			self.target_solar,
 			self.target_period,
-			self.target_hour,
+			#self.target_hour, #useless for forecast
 			self.target_weekday,
 			self.target_month,
 			self.target_lockdown,
@@ -171,10 +171,10 @@ class ModelRF():
 	def decompose(self, series):
 		#For later, custom, decomposition
 		#Decompose time series using STL twice
-		decomp_1 = STL(series, period = 168, seasonal = 169).fit()
+		decomp_1 = STL(series, period = 24, seasonal = 25).fit()
 		seasonal_1 = decomp_1.seasonal #weekly seasonalty
 		intermediate_series = decomp_1.trend + decomp_1.resid
-		decomp_2 = STL(intermediate_series, period = 24, seasonal = 25).fit()
+		decomp_2 = STL(intermediate_series, period = 168, seasonal = 169).fit()
 		trend = decomp_2.trend #daily seasonalty
 		seasonal_2 = decomp_2.seasonal
 		resid = decomp_2.resid
@@ -284,14 +284,14 @@ class ModelRF():
 						  end = now + pd.Timedelta(23, "H"))
 		return pred
 
-	def daily_season_pred_1(self, now, delta = pd.Timedelta(3, "W")):
+	def daily_season_pred_1(self, now, delta = pd.Timedelta(2, "W")):
 		#Predict weekly seasonalty day by day
 		train_time = pd.date_range(start = now - delta , end = now - pd.Timedelta(1, "H"), freq = "H")
 		model_series = self.seasonal_1[train_time]
 		hw_model = ExponentialSmoothing(model_series,
 									trend = "add",
 									seasonal='add', #multiplicative
-									seasonal_periods= 168 ,
+									seasonal_periods= 24 ,
 									initialization_method = 'estimated',
 									freq='H',
 									)
@@ -301,14 +301,14 @@ class ModelRF():
 
 		return pred
 
-	def daily_season_pred_2(self, now, delta = pd.Timedelta(2, "W")):
+	def daily_season_pred_2(self, now, delta = pd.Timedelta(3, "W")):
 		#Predict daily seasonalty day by day
 		train_time = pd.date_range(start = now - delta , end = now - pd.Timedelta(1, "H"), freq = "H")
 		model_series = self.seasonal_2[train_time]
 		hw_model = ExponentialSmoothing(model_series,
 									trend = "add",
 									seasonal='add', #multiplicative
-									seasonal_periods= 24 ,
+									seasonal_periods= 168 ,
 									initialization_method = 'estimated',
 									freq='H',
 									)
@@ -327,13 +327,13 @@ class ModelRF():
 		'''
 		#Local RF model to predict residuals
 		model = RandomForestRegressor(n_estimators = 300, #100
-									   max_features = 'auto', #17
+									   max_features = 'sqrt', #17
 									   bootstrap = True,
-									   max_samples = 0.5, #low bootstrap size 0.3
+									   max_samples = None, #low bootstrap size 0.3
 									   max_depth =None, #5
-									   min_samples_split = 5,
+									   min_samples_split = 2,
 									   n_jobs = 4,
-									   ccp_alpha = 0.1,
+									   ccp_alpha = 0.0, #no cost-complexity pruning
 									   verbose = 0)
 		#Learrning sets
 		X, y = self.learning_set(query, t, restrict = self.rest)
@@ -367,7 +367,7 @@ class ModelRF():
 		while trav.date != first_date:
 			trav = trav.next
 
-		while trav and trav.date != last_date + pd.Timedelta(1, "D"):
+		while trav and trav.date != last_date + pd.Timedelta(1, "D"): #Notice here 'and' SHORT CIRCUITS
 			print("Predicting day ", k)
 			r_pred = []
 			#Hourly predictions - Resids

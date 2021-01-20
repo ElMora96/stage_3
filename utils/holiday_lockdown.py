@@ -72,6 +72,8 @@ holiday["2020-04-14":"2020-04-17"] = 0.25
 holiday["2020-06-01"] = 0.5
 #Settimana di ferragosto
 holiday["2020-08-10":"2020-08-14"] = 0.5
+#Settimana dopo ferragosto
+holiday["2020-08-17":"2020-08-21"] = 0.5
 #Ponte immacolata
 holiday["2020-12-07"] = 0.5
 #Settimana di Natale
@@ -87,9 +89,6 @@ feste = {dt.date(2018,1,1), dt.date(2018,1,6), dt.date(2018,4,1), dt.date(2018,4
 for index, _ in holiday.iteritems():
 	if index.date() in (feste):
 		holiday[index] = 1 #flag holydays
-	if index.weekday() == 6:
-		holiday[index] = 0.7 #Flag sunday
-
 
 
 #Cast to UTC
