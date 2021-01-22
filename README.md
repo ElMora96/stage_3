@@ -1,5 +1,5 @@
 # stage_3
-Python Load Forecasting project - Stage 3\
+Python Load Forecasting project - Stage 3
 
 This project consists in the development of some non-conventional, short-term electric load forecasting models. 
 Modules in folder 'libs' provide concrete implementations of two models, namely:\
