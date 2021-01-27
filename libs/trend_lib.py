@@ -219,20 +219,32 @@ class  ModelTrend():
 		hour of day
 		'''
 		#Local RF model to predict trend
-		
-		model = GradientBoostingRegressor(n_estimators = 700, #number of boosting iterations to perform
+		'''
+		model = RandomForestRegressor(n_estimators = 450, #100
+									   max_features = 'auto', #17
+									   bootstrap = True,
+									   max_samples = None, #low bootstrap size 0.3
+									   max_depth =None, #5
+									   min_samples_split = 2,
+									   min_samples_leaf = 1,
+									   n_jobs = 4,
+									   ccp_alpha = 0.1,
+									   verbose = 0)
+		'''
+		model = GradientBoostingRegressor(n_estimators = 150, #number of boosting iterations to perform
 											loss = 'ls',
-											learning_rate = 0.05, #shrinkage
+											learning_rate = 0.025, #shrinkage
 											min_samples_split = 2,
-											min_samples_leaf = 5, #default
+											min_samples_leaf = 2, #default
 											max_depth = None,
 											subsample = 1, #stochastic gradient boosting
 											max_features = 'auto',
 											verbose = 1,
 											ccp_alpha = 0.0,
-											n_iter_no_change = 50,#Early stopping 1
+											n_iter_no_change = None,#Early stopping 1
 											validation_fraction = 0.1, #Early stopping 2
 											tol = 1) #Early stopping 3 [MWh]
+		
 		
 		#Learrning sets
 		X, y = self.learning_set(query, t, restrict = self.rest)
