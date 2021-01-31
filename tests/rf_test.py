@@ -1,7 +1,7 @@
 #Testing random forest model
 import sys
 sys.path.append("D://Users//F.Moraglio//Documents//python_forecasting//stage_3//libs")
-import stl_rf_lib as rf  #single seasonality prediction
+import 2stl_rf_lib as rf #single seasonality prediction
 from utils_lib import  mape
 import pandas as pd
 import numpy as np
@@ -96,7 +96,7 @@ z_true = true_load[zone]
 
 #%%
 #Generate model load dataset according to desired forecast
-last_bill = "2020-05" #last bill to consider (Month N-2)
+last_bill = "2020-08" #last bill to consider (Month N-2)
 last_date = "2020-12-13 23:00:00+00:00" #Last available date in load dataset. RK specify it in UTC format
 true_base = z_true[:last_bill] #Take all "available" bills 
 forecast_completion = z_egea[true_base.index[-1] + pd.Timedelta(1,"H"): last_date] #Complete with corporate forecast
@@ -111,17 +111,18 @@ z_load = z_load[first_date:last_date]
 #? - WHY THIS DOES NOT WORK IN LOOP? - ?
 #%%
 #Test set
-test_range = pd.date_range(start = '2020-07-01 00:00:00+00:00',
-						   end = '2020-07-09 23:00:00+00:00',
+test_range = pd.date_range(start = '2020-09-28 00:00:00+00:00',
+						   end = '2020-04-10 23:00:00+00:00',
 						   freq = 'H',
 						   tz = 'UTC'
 						   )
 true_series = z_true[test_range]
 egea_series = z_egea[test_range]
 
-#Model & Predicion
-model = rf.ModelRF(z_load, z_temp, z_solar, holiday, lockdown, M = 75, rest=True )
-pred_series = model.predict(test_range, recursive = False)
+#%% Predicion
+model = rf.ForecastModel(z_load, z_temp, z_solar, holiday, lockdown, restrict_to_nn=True, n_neighbors=50)
+#%% Predicion
+pred_series = model.fit_predict(test_range)
 
 #%%
 #Evaluation & Plot Routine
@@ -139,27 +140,26 @@ plt.legend()
 plt.show()
 
 #%%
-'''
+
 #Decomposed Analysis - Double seasonality model
 first_decompose = STL(true_load[zone], period = 24, seasonal = 25).fit()
 seasonal_1 = first_decompose.seasonal
 intermediate_series = true_load[zone] - seasonal_1
 second_decompose = STL(intermediate_series, period = 168, seasonal = 169).fit()
-trend = second_decompose.trend
 seasonal_2 = second_decompose.seasonal
-resid = second_decompose.resid
-true_list = [trend[test_range], seasonal_1[test_range], seasonal_2[test_range], resid[test_range]]
-pred_list = [model.trend_prediction, model.seas_1_prediction, model.seas_2_prediction, model.resid_prediction]
-name_list = ["Trend", "Season 1", "Season 2", "Resid"]
+deseasonalized = intermediate_series- seasonal_2
+true_list = [deseasonalized[test_range], seasonal_1[test_range], seasonal_2[test_range]]
+pred_list = [model._deseasonalized_forecast, model._daily_seasonal_forecast, model._weekly_seasonal_forecast]
+name_list = ["Des", "Season 1", "Season 2"]
 for true, pred, name in zip(true_list, pred_list, name_list):
 	plt.plot(true, label = "Actual " + name, color = "blue", linewidth = 2)
 	plt.plot(pred, label = "Prediction", color = "red", linestyle="--")
 	plt.legend()
 	plt.show()
-'''
+
 
 #Decomposed Analysis - single seasonality model
-
+'''
 original_decompose = STL(true_load[zone], period = 168, seasonal = 169).fit()
 true_list = [original_decompose.trend[test_range], original_decompose.seasonal[test_range], original_decompose.resid[test_range]]
 pred_list = [model.trend_prediction, model.seas_prediction, model.resid_prediction]
@@ -169,3 +169,4 @@ for true, pred, name in zip(true_list, pred_list, name_list):
 	plt.plot(pred, label = "Prediction", color = "red", linestyle="--")
 	plt.legend()
 	plt.show()
+'''

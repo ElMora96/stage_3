@@ -96,7 +96,7 @@ z_egea = egea_forecast[zone]
 z_true = true_load[zone]
 
 #Generate model load dataset according to desired forecast
-last_bill = "2020-05" #last bill to consider (Month N-2)
+last_bill = "2020-07" #last bill to consider (Month N-2)
 last_date = "2020-12-13 23:00:00+00:00" #Last available date in load dataset. RK specify it in UTC format
 true_base = z_true[:last_bill] #Take all "available" bills 
 forecast_completion = z_egea[true_base.index[-1] + pd.Timedelta(1,"H"): last_date] #Complete with corporate forecast
@@ -117,15 +117,15 @@ for load in load_list:
 	dec_1 = STL(load, period = 24, seasonal = 25).fit()
 	intermediate = dec_1.resid + dec_1.trend
 	dec_2 = STL(intermediate, period = 168, seasonal = 169).fit()
-	trend = dec_2.resid
+	trend = dec_2.resid + dec_2.trend
 	trend_list.append(trend)
 
 z_load, z_egea, z_true = trend_list #Overwrite
 
 #%%
 #Test set
-test_range = pd.date_range(start = '2020-07-15 00:00:00+00:00',
-						   end = '2020-07-19 23:00:00+00:00',
+test_range = pd.date_range(start = '2020-10-02 00:00:00+00:00',
+						   end = '2020-10-02 23:00:00+00:00',
 						   freq = 'H',
 						   tz = 'UTC'
 						   )
@@ -133,7 +133,7 @@ true_series = z_true[test_range]
 egea_series = z_egea[test_range]
 
 #Model & Predicion
-model = tl.ModelTrend(z_load, z_temp, z_solar, holiday, lockdown, M = 75, rest = True )
+model = tl.ModelTrend(z_load, z_temp, z_solar, holiday, lockdown, M = 75, rest = False )
 pred_series = model.predict(test_range, recursive = False)
 #%%
 #Feature importances
